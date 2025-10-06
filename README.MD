@@ -133,7 +133,3 @@ Si prefieres, puedo añadir comandos en chat para gestionar esta lista (por ejem
 ## Licencia
 
 Revisa el archivo `LICENSE` incluido en el repositorio.
-
----
-
-Si quieres que añada ejemplos de outputs, comandos administradores o fragmentos de `.env.example`, dime qué incluir y lo actualizo.
