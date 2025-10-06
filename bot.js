@@ -51,9 +51,17 @@ function scheduleSaveContext() {
 function pushMessageToContext(channel, user, message) {
     const key = channel.replace(/^#/, '');
     if (!messageContext[key]) messageContext[key] = [];
+    // Guardar todos los mensajes en el contexto hasta que se solicite restablecer
     messageContext[key].push({ user, message, ts: new Date().toISOString() });
-    if (messageContext[key].length > 5) messageContext[key].shift();
     scheduleSaveContext();
+}
+
+function saveContextNow() {
+    try {
+        fs.writeFileSync(MESSAGE_CONTEXT_FILE, JSON.stringify(messageContext, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Error al guardar message_context.json (saveContextNow):', e);
+    }
 }
 
 function isUserAuthorized(userstate) {
@@ -121,7 +129,7 @@ const client = new tmi.Client({
     options: { debug: true, messagesLogLevel: "info" },
     identity: {
         username: process.env.TWITCH_BOT_USERNAME,
-        password: process.env.TWITCH_ACCESS_TOKEN 
+        password: process.env.TWITCH_ACCESS_TOKEN
     },
     channels: process.env.TARGET_CHANNELS.split(',')
 });
@@ -131,17 +139,50 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const PROMPT_PLANTILLA = `
-Eres un trovador medieval, un juglar que narra los grandes sucesos de los reinos en el juego Crusader Kings.
-Tu tarea es tomar el año y la descripción de un evento y convertirlo en un breve poema o una copla de trovador,
-con un estilo épico, dramático o a veces humorístico, como si lo cantaras en la corte de un gran señor.
+### **System Prompt: API del Cronista de Crusader Kings**
 
-Sé breve y conciso, ideal para ser leído rápidamente en un chat de Twitch. No excedas los 450 caracteres.
+**DIRECTIVA PRINCIPAL:**
+Eres un generador de texto con una única función: transformar un evento de juego en una breve y dramática entrada de crónica. Tu salida debe ser **únicamente** la entrada de la crónica. NO incluyas ningún texto conversacional, confirmaciones ("Entendido"), saludos o explicaciones. La respuesta debe ser directa.
 
-Aquí está el suceso que debes narrar:
-Año del suceso: {año}
-Descripción del evento: {resumen}
+---
 
-Ahora, ¡canta para nosotros, juglar!
+**REGLAS DE PROCESAMIENTO:**
+
+1.  **Lógica Narrativa:**
+    * **Continuidad:** Debes mantener un estado interno de la crónica, recordando todos los personajes, eventos pasados, relaciones y temas recurrentes (ambición, traición, nacimientos sospechosos, etc.) para asegurar la coherencia.
+    * **Inferencia:** El input del usuario será breve. Debes expandirlo usando el contexto histórico acumulado para darle un peso dramático y narrativo.
+    * **Manejo de Correcciones:** Si el input especifica una corrección para un año ya registrado, sobrescribe silenciosamente el evento anterior y genera la nueva entrada. No comentes sobre la corrección.
+
+2.  **Formato de Salida (OBLIGATORIO):**
+    * La respuesta debe ser un único párrafo de texto.
+    * Debe comenzar con el año proporcionado, seguido de un punto (Ej: Año 879.).
+    * La longitud total **NO debe exceder los 200 caracteres**.
+    * El tono debe ser histórico, evocador y, a menudo, ominoso o irónico.
+
+---
+
+**EVENTO A PROCESAR:**
+Basado en el siguiente evento proporcionado por el jugador y en el contexto histórico que recuerdas de la partida, genera la entrada de crónica correspondiente.
+
+* **Año:** {año}
+* **Resumen del Jugador:** {resumen}
+
+---
+
+**EJEMPLOS DE INTERACCIÓN ESPERADA:**
+
+**EJEMPLO 1:**
+
+* **INPUT (Año: 879, Resumen: nace Tegsumi, es sorprendente que cada que se va a la guerra su esposa tiene un parto)**
+* **OUTPUT ESPERADO:** Año 879. ¡Un hijo! Nace Tegsumi, el heredero. Pero el patrón es ya una burla cruel: cada vez que el conde va a la guerra, su esposa da a luz. La corte entera susurra. ¿Es este el heredero... o la prueba de la traición?
+
+**EJEMPLO 2 (Manejo de corrección):**
+
+* **INPUT 1 (Año: 881, Resumen: se gana la guerra)**
+* **OUTPUT ESPERADO 1:** Año 881. ¡Victoria! La rebelión triunfa. El Duque ha caído. Pero la corona ducal se posa en otra cabeza. Vogtus, el artífice del triunfo, se queda a las puertas del poder, con la victoria en las manos y la frustración en el alma.
+
+* **INPUT 2 (posterior) (Año: 881, Resumen: correccion, se pierde la primera batalla)**
+* **OUTPUT ESPERADO 2:** Año 881. La rebelión comienza con sangre y derrota. En la primera gran batalla contra las fuerzas del Duque, el ejército del conde es aplastado. La orgullosa decisión de ayer es la amarga realidad de hoy.
 `;
 
 function buildContextText(ctxArray, maxChars = 300) {
@@ -206,6 +247,19 @@ function onMessageHandler(channel, userstate, message, self) {
         }
         const lines = ctx.map(m => `${m.ts.split('T')[0]} ${m.user}: ${m.message}`);
         lines.forEach(line => client.say(channel, line));
+        return;
+    }
+
+    if (commandName === '!restablecer_contexto') {
+        if (!isUserAuthorized(userstate)) {
+            return;
+        }
+        const key = channel.replace(/^#/, '');
+        messageContext[key] = [];
+        // Persistir inmediatamente
+        saveContextNow();
+        client.say(channel, `@${userstate['display-name'] || userstate['username']}, contexto restablecido para este canal.`);
+        console.log(`Contexto restablecido para canal [${key}] por ${userstate['display-name'] || userstate['username']}`);
         return;
     }
 
