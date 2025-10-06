@@ -2,9 +2,9 @@
   "name": "trovabot",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/main.js",
   "scripts": {
-    "start": "node bot.js",
+    "start": "node src/main.js",
     "token": "node obtener_token.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -15,7 +15,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/brolmu/Trovabot/issues"
   },
@@ -24,6 +24,8 @@
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.12.2",
     "dotenv": "^17.2.3",
-    "tmi.js": "^1.8.5"
+    "tmi.js": "^1.8.5",
+    "@supabase/supabase-js": "^2.29.0"
+    ,"pg": "^8.11.0"
   }
 }
