@@ -33,13 +33,13 @@ export function pushMessageToContext(channel, user, message, type = 'chat') {
         return;
     }
 
-    if (!messageContext[key]) messageContext[key] = [];
-    const entry = { user, message: msg, type, ts: new Date().toISOString() };
-    messageContext[key].push(entry);
-    const supabase = getSupabase();
-    if (supabase) {
-        insertMessage(key, (user||'').toLowerCase(), msg, type).catch(() => {});
-    }
+    // if (!messageContext[key]) messageContext[key] = [];
+    // const entry = { user, message: msg, type, ts: new Date().toISOString() };
+    // messageContext[key].push(entry);
+    // const supabase = getSupabase();
+    // if (supabase) {
+    //     insertMessage(key, (user||'').toLowerCase(), msg, type).catch(() => {});
+    // }
 }
 
 export function isUserAuthorized(userstate, channel) {
