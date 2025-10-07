@@ -3,6 +3,7 @@ import { getAuthorizedUsers, getBotState, insertMessage, addAuthorizedUserDB, re
 import { getSupabase } from './db.js';
 
 let messageContext = {};
+const savedCommandsByChannel = new Map();
 
 export function getMessageContext() {
     return messageContext;
@@ -10,12 +11,34 @@ export function getMessageContext() {
 
 export function pushMessageToContext(channel, user, message, type = 'chat') {
     const key = channel.replace(/^#/, '');
+    const prefix = '!';
+    const msg = (message || '').toString();
+    const isCommand = msg.trim().startsWith(prefix);
+
+    if (isCommand) {
+        const command = msg.trim().split(/\s+/)[0]; // e.g. "!event"
+        const seen = savedCommandsByChannel.get(key) || new Set();
+        if (seen.has(command)) {
+            return;
+        }
+        seen.add(command);
+        savedCommandsByChannel.set(key, seen);
+        if (!messageContext[key]) messageContext[key] = [];
+        const entry = { user, message: msg, type: command, ts: new Date().toISOString() };
+        messageContext[key].push(entry);
+        const supabase = getSupabase();
+        if (supabase) {
+            insertMessage(key, (user||'').toLowerCase(), msg, command).catch(() => {});
+        }
+        return;
+    }
+
     if (!messageContext[key]) messageContext[key] = [];
-    const entry = { user, message, type, ts: new Date().toISOString() };
+    const entry = { user, message: msg, type, ts: new Date().toISOString() };
     messageContext[key].push(entry);
     const supabase = getSupabase();
     if (supabase) {
-        insertMessage(key, (user||'').toLowerCase(), message, type).catch(() => {});
+        insertMessage(key, (user||'').toLowerCase(), msg, type).catch(() => {});
     }
 }
 
